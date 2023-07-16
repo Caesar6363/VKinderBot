@@ -1,13 +1,13 @@
+import vk_api
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from random import randrange
 import requests
-import vk_api
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 import threading
 import re
 import configparser
 import db
-from messages import *
+import messages as txt
 
 
 class VkUser:
@@ -45,7 +45,7 @@ class VkUser:
         try:
             response = response.json()['response']['items']
             if not response:
-                VkBot().write_msg(user_id, city_unknown)
+                VkBot().write_msg(user_id, txt.city_unknown)
                 city = False
             else:
                 for city_id in response:
@@ -89,7 +89,7 @@ class VkUser:
         offset = db.get_offset(user_id)
         response = requests.get(
             'https://api.vk.com/method/users.search',
-            self.get_params({'count': 1,
+            self.get_params({'count': 30,
                              'offset': offset,
                              'city': city,
                              'country': 1,
@@ -117,11 +117,12 @@ class VkUser:
                     offset += 1
                     db.update(user_id, db.UserPosition, offset=offset)
                     VkBot().offer_partner(partner_id, first_name, last_name)
+            return True
         except:
             print(f"Не удалось найти партнера для {user_id}: {response.json()['error']['error_msg']}")
             VkBot().write_msg(user_id, 'Ошибка с нашей стороны. Попробуйте позже.')
             db.update(user_id, db.UserPosition, position=1, offset=0)
-            return
+            return False
 
 
 class VkBot:
@@ -156,9 +157,9 @@ class VkBot:
             elif 18 <= age_range[0] < age_range[1] and age_range[0] < age_range[1] <= 100:
                 return age_range
             else:
-                self.write_msg(user_id, age_range_unknown)
+                self.write_msg(user_id, txt.age_range_unknown)
         except:
-            self.write_msg(user_id, age_range_unknown)
+            self.write_msg(user_id, txt.age_range_unknown)
 
     def offer_partner(self, partner_id, first_name, last_name):
         db_user_id = db.get_db_id(user_id)
@@ -194,29 +195,29 @@ class VkBot:
         position = db.get_position(user_id)
 
         if message_text in self.commands[2]:
-            self.write_msg(user_id, good_bye)
+            self.write_msg(user_id, txt.good_bye)
             db.update(user_id, db.UserPosition, position=0)
 
         elif message_text in self.commands[0] or position == 0:
             buttons = ['Старт']
             button_colors = [VkKeyboardColor.POSITIVE]
             keyboard = self.chat_keyboard(buttons, button_colors)
-            self.write_msg(user_id, Hello, keyboard=keyboard.get_keyboard())
+            self.write_msg(user_id, txt.Hello, keyboard=keyboard.get_keyboard())
             db.add_user(db.User(vk_id=user_id))
             db_user_id = db.get_db_id(user_id)
             db.add_user(db.UserPosition(id_User=db_user_id, vk_id=user_id, position=1, offset=0))
 
         elif position == 1 or message_text == 'изменить критерии поиска':
             if message_text in self.commands[1] or message_text == 'изменить критерии поиска':
-                self.write_msg(user_id, city_input)
+                self.write_msg(user_id, txt.city_input)
                 db.update(user_id, db.UserPosition, position=2, offset=0)
             else:
-                self.write_msg(user_id, unknown_command)
+                self.write_msg(user_id, txt.unknown_command)
 
         elif position == 2:
             city = VkUser().get_city(message_text)
             if city:
-                self.write_msg(user_id, age_range_msg)
+                self.write_msg(user_id, txt.age_range_msg)
                 db.update(user_id, db.User, city=city)
                 db.update(user_id, db.UserPosition, position=3)
             else:
@@ -228,7 +229,7 @@ class VkBot:
             buttons = ['Мужской', 'Женский']
             button_colors = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
             keyboard = self.chat_keyboard(buttons, button_colors)
-            self.write_msg(user_id, sex_input, keyboard=keyboard.get_keyboard())
+            self.write_msg(user_id, txt.sex_input, keyboard=keyboard.get_keyboard())
             db.update(user_id, db.UserPosition, position=4)
 
         elif position == 4:
@@ -241,14 +242,14 @@ class VkBot:
                 if user_info:
                     db.update(user_id, db.User, first_name=user_info[0], last_name=user_info[1], target_gender=gender)
                     db.update(user_id, db.UserPosition, position=5)
-                    VkUser().find_partner()
+                    VkUser().м()
                 else:
                     return
             else:
                 buttons = ['Мужской', 'Женский']
                 button_colors = [VkKeyboardColor.POSITIVE, VkKeyboardColor.POSITIVE]
                 keyboard = self.chat_keyboard(buttons, button_colors)
-                self.write_msg(user_id, unknown_command, keyboard=keyboard.get_keyboard())
+                self.write_msg(user_id, txt.unknown_command, keyboard=keyboard.get_keyboard())
 
         elif position == 5:
             if message_text == 'далее':
@@ -257,7 +258,7 @@ class VkBot:
                 favorite = db.Favorite(vk_id=db.get_partner_id(), first_name=db.get_partner_first_name(),
                                        last_name=db.get_partner_last_name(), id_User=db.get_db_id(user_id))
                 db.add_user(favorite)
-                self.write_msg(user_id, add_favourite)
+                self.write_msg(user_id, txt.add_favourite)
                 VkUser().find_partner()
             elif message_text == 'список избранных':
                 self.show_favorites()
@@ -266,30 +267,30 @@ class VkBot:
                 buttons = ['Далее', 'В избранное', 'Список избранных']
                 button_colors = [VkKeyboardColor.SECONDARY, VkKeyboardColor.POSITIVE, VkKeyboardColor.PRIMARY]
                 keyboard = self.chat_keyboard(buttons, button_colors)
-                self.write_msg(user_id, unknown_command, keyboard=keyboard.get_keyboard())
+                self.write_msg(user_id, txt.unknown_command, keyboard=keyboard.get_keyboard())
 
         elif position == 6:
             if message_text == 'продолжить поиск':
                 db.update(user_id, db.UserPosition, position=5)
                 VkUser().find_partner()
             elif message_text == 'удалить партнера из списка':
-                self.write_msg(user_id, id_input)
+                self.write_msg(user_id, txt.id_input)
                 db.update(user_id, db.UserPosition, position=7)
             else:
-                self.write_msg(user_id, unknown_command)
+                self.write_msg(user_id, txt.unknown_command)
 
         elif position == 7:
             if int(message_text) in db.view_favorites(user_id):
                 db.delete_user(int(message_text))
-                self.write_msg(user_id, delete)
+                self.write_msg(user_id, txt.delete)
                 db.update(user_id, db.UserPosition, position=5)
                 VkUser().find_partner()
             else:
-                self.write_msg(user_id, id_unknown)
+                self.write_msg(user_id, txt.id_unknown)
         elif not position:
             VkBot().write_msg(user_id, 'Ошибка с нашей стороны. Попробуйте позже.')
         else:
-            self.write_msg(user_id, unknown_command)
+            self.write_msg(user_id, txt.unknown_command)
 
 
 if __name__ == '__main__':

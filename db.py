@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker, relationship
 
 
 Base = declarative_base()
-engine = sq.create_engine('postgresql://username:password@localhost:5432/VKinder')
+engine = sq.create_engine("postgresql://username:password@localhost:5432/VKinder")
 Session = sessionmaker(bind=engine)
 session = Session()
 
@@ -13,20 +13,16 @@ class User(Base):
     __tablename__ = 'user'
     id = sq.Column(sq.Integer, primary_key=True)
     vk_id = sq.Column(sq.Integer)
-    first_name = sq.Column(sq.String)
-    last_name = sq.Column(sq.String)
     age_from = sq.Column(sq.Integer)
     age_to = sq.Column(sq.Integer)
     target_gender = sq.Column(sq.Integer)
-    city = sq.Column(sq.String)
+
 
 
 class Partner(Base):
     __tablename__ = 'partner'
     id = sq.Column(sq.Integer, primary_key=True)
     vk_id = sq.Column(sq.Integer)
-    first_name = sq.Column(sq.String)
-    last_name = sq.Column(sq.String)
     id_User = sq.Column(sq.Integer, sq.ForeignKey('user.id'))
     user = relationship(User)
 
@@ -35,8 +31,6 @@ class Favorite(Base):
     __tablename__ = 'favorite'
     id = sq.Column(sq.Integer, primary_key=True)
     vk_id = sq.Column(sq.Integer)
-    first_name = sq.Column(sq.String)
-    last_name = sq.Column(sq.String)
     id_User = sq.Column(sq.Integer, sq.ForeignKey('user.id'))
     user = relationship(User)
 
@@ -54,23 +48,27 @@ class UserPosition(Base):
 def create_tables():
     try:
         Base.metadata.create_all(engine)
+        return True
     except Exception as e:
         print(e)
+        return False
 
 
 def add_user(user):
     try:
         session.expire_on_commit = False
         if isinstance(user, User) and session.query(User.vk_id).filter(User.vk_id == user.vk_id).first() is not None:
-            return
+            return False
         elif isinstance(user, UserPosition) and \
                 session.query(UserPosition.vk_id).filter(UserPosition.vk_id == user.vk_id).first() is not None:
             update(user.vk_id, UserPosition, position=1)
         else:
             session.add(user)
             session.commit()
+        return True
     except Exception as e:
         print(e)
+        return False
 
 
 def update(user_id, target_table, **kwargs):
@@ -81,8 +79,10 @@ def update(user_id, target_table, **kwargs):
         else:
             session.query(target_table).filter(target_table.id_User == db_user_id).update({**kwargs})
         session.commit()
+        return True
     except Exception as e:
         print(e)
+        return False
 
 
 def delete_user(partner_id):
@@ -90,8 +90,10 @@ def delete_user(partner_id):
         session.expire_on_commit = False
         session.query(Favorite).filter(Favorite.vk_id == partner_id).delete()
         session.commit()
+        return True
     except Exception as e:
         print(e)
+        return False
 
 
 def view_favorites(user_id):
@@ -104,6 +106,7 @@ def view_favorites(user_id):
         return links
     except Exception as e:
         print(e)
+        return False
 
 
 def avoid_list(user_id):
@@ -115,6 +118,7 @@ def avoid_list(user_id):
         return links
     except Exception as e:
         print(e)
+        return False
 
 
 def get_position(user_id):
@@ -127,6 +131,7 @@ def get_position(user_id):
         return return_count
     except Exception as e:
         print(e)
+        return False
 
 
 def get_offset(user_id):
@@ -139,6 +144,7 @@ def get_offset(user_id):
         return return_count
     except Exception as e:
         print(e)
+        return False
 
 
 def get_db_id(user_id):
@@ -146,13 +152,16 @@ def get_db_id(user_id):
         return session.query(User.id).filter(User.vk_id == user_id).first()
     except Exception as e:
         print(e)
+        return False
 
 
-def get_city(user_id):
+def get_city(user_id, vk):
     try:
-        return session.query(User.city).filter(User.vk_id == user_id).first()
+        user = vk.method("users.get", {"user_ids": User.vk_id})
+        return session.query(user[0]['city']).filter(User.vk_id == user_id).first()
     except Exception as e:
         print(e)
+        return False
 
 
 def get_sex(user_id):
@@ -160,6 +169,7 @@ def get_sex(user_id):
         return session.query(User.target_gender).filter(User.vk_id == user_id).first()
     except Exception as e:
         print(e)
+        return False
 
 
 def get_age_from(user_id):
@@ -167,6 +177,7 @@ def get_age_from(user_id):
         return session.query(User.age_from).filter(User.vk_id == user_id).first()
     except Exception as e:
         print(e)
+        return False
 
 
 def get_age_to(user_id):
@@ -174,6 +185,7 @@ def get_age_to(user_id):
         return session.query(User.age_from).filter(User.vk_id == user_id).first()
     except Exception as e:
         print(e)
+        return False
 
 
 def get_partner_id():
@@ -181,17 +193,22 @@ def get_partner_id():
         return session.query(Partner.vk_id).order_by(Partner.id.desc()).first()
     except Exception as e:
         print(e)
+        return False
 
 
-def get_partner_first_name():
+def get_partner_first_name(vk):
     try:
-        return session.query(Partner.first_name).order_by(Partner.id.desc()).first()
+        user = vk.method("users.get", {"user_ids": Partner.vk_id})
+        return session.query(user[0]['first_name']).order_by(Partner.id.desc()).first()
     except Exception as e:
         print(e)
+        return False
 
 
-def get_partner_last_name():
+def get_partner_last_name(vk):
     try:
-        return session.query(Partner.last_name).order_by(Partner.id.desc()).first()
+        user = vk.method("users.get", {"user_ids": Partner.vk_id})
+        return session.query(user[0]['last_name']).order_by(Partner.id.desc()).first()
     except Exception as e:
         print(e)
+        return False
